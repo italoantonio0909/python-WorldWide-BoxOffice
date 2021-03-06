@@ -1,11 +1,16 @@
 import requests
 import os
+import datetime
+import sys
 
 from requests_html import HTML
 
+import pandas
+
 THIS_FILE = os.path.abspath(__file__)
 BASE_DIR = os.path.dirname(THIS_FILE)
-DOWNLOAD_DIR=os.path.join(BASE_DIR,'download')
+DOWNLOAD_DIR = os.path.join(BASE_DIR, 'download')
+CSV_DIR=os.path.join(BASE_DIR,'data')
 
 
 
@@ -30,7 +35,7 @@ def url_to_file(*, url: str, save: bool = True, year: str):
 
 
 def parsed_and_extract(*, url: str, year: str):
-    
+
     #Data initial
     table_data=[]
 
@@ -39,7 +44,7 @@ def parsed_and_extract(*, url: str, year: str):
     #Request validate date
     if response_html == None:
         return False
-
+    
     #Selector queryset
     table_class = '.imdb-scroll-table'
     r_html = HTML(html=response_html)
@@ -51,20 +56,49 @@ def parsed_and_extract(*, url: str, year: str):
     
     parsed_table = r_table[0]
     rows = parsed_table.find('tr')
+    header_row=rows[0]
+    header_cols=header_row.find('th')
+    header_names=[e.text for e in header_cols]
 
     #Iterator str
     for row in rows[1:]:
         row_data=[]
-        cols=row.find('tr')
+        cols=row.find('td')
         for i, col in enumerate(cols):
             row_data.append(col.text)
         table_data.append(row_data)
+    
+    #Exists path data
+    if not os.path.isdir(CSV_DIR):
+        os.makedirs(CSV_DIR)
 
-    return table_data
-            
+    csv_filename=os.path.join(CSV_DIR,f'{year}-WorldwideBoxOffice.csv')
+    df=pandas.DataFrame(table_data, columns=header_names)
+    df.to_csv(csv_filename, index=False)
+
+    return True
 
 
-url='https://www.boxofficemojo.com/year/world/2021/'
+
+def run(*, start_year: str=None, years_ago:int=1):
+    if start_year == None:
+        now = datetime.datetime.now()
+        start_year = now.year
+
+    for e in range(0, years_ago + 1):
+        url = f'https://www.boxofficemojo.com/year/world/{start_year}/'
+        parsed_and_extract(url=url,year=start_year)
+        start_year-=1
+        
+
+
 if __name__ == '__main__':
-    x = parsed_and_extract(url=url, year='2021')
-    print(x)
+    try:
+        start = int(sys.argv[1])
+    except:
+        start = None
+    try:
+        count = int(sys.argv[2])
+    except:
+        count = 0
+    run(start_year=start, years_ago=count)
